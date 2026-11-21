@@ -1,6 +1,6 @@
 # Deep infer
 
-A Vulkan based real-time renderer engine running super-resolution with TensorRT-RTX.
+A Vulkan based real-time renderer running super-resolution with TensorRT-RTX.
 
 ## Features
 - Render a scene and toggle super-resolution in real time.
