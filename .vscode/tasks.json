@@ -1,0 +1,39 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "shell",
+      "label": "Config",
+      "command": "cmake",
+      "args": ["--preset=Base", "-DTRTRTX_INSTALL_DIR:PATH=C:/Users/liamh/code/TensorRT-RTX-1.7.1.116"]
+    },
+    {
+      "type": "shell",
+      "label": "Build Debug",
+      "command": "cmake",
+      "args": ["--build", "--preset=Debug"]
+    },
+    {
+      "type": "shell",
+      "label": "Build RelWithDebInfo",
+      "command": "cmake",
+      "args": ["--build", "--preset=RelWithDebInfo"]
+    },
+    {
+      "type": "shell",
+      "label": "Install",
+      "command": "cmake",
+      "args": ["--install", "build", "--config", "RelWithDebInfo"]
+    },
+    {
+      "label": "CMake Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Config", "Build Debug"]
+    },
+    {
+      "label": "CMake RelWithDebInfo",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Config", "Build RelWithDebInfo", "Install"]
+    }
+  ]
+}

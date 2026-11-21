@@ -1,0 +1,63 @@
+Diagnostics:
+  ClangTidy:
+    Add:
+      - bugprone-*
+      - modernize-*
+      - performance-*
+      - readability-*
+    Remove:
+      - bugprone-easily-swappable-parameters
+      - bugprone-macro-parentheses
+      - modernize-use-designated-initializers
+      - modernize-use-nodiscard
+      - modernize-use-trailing-return-type
+      - readability-function-cognitive-complexity
+      - readability-identifier-length
+      - readability-implicit-bool-conversion
+      - readability-magic-numbers
+      - readability-math-missing-parentheses
+      - readability-static-accessed-through-instance
+    CheckOptions:
+      readability-identifier-naming.ClassCase: CamelCase
+      readability-identifier-naming.StructCase: CamelCase
+      readability-identifier-naming.UnionCase: CamelCase
+      readability-identifier-naming.EnumCase: CamelCase
+      readability-identifier-naming.ConceptCase: CamelCase
+      readability-identifier-naming.TypedefCase: CamelCase
+      readability-identifier-naming.TypeAliasCase: CamelCase
+      readability-identifier-naming.NamespaceCase: lower_case
+      readability-identifier-naming.FunctionCase: CamelCase
+      readability-identifier-naming.MethodCase: CamelCase
+      readability-identifier-naming.ConstantCase: CamelCase
+      readability-identifier-naming.ConstantPrefix: k
+      readability-identifier-naming.ConstexprVariableCase: CamelCase
+      readability-identifier-naming.ConstexprVariablePrefix: k
+      readability-identifier-naming.VariableCase: lower_case
+      readability-identifier-naming.GlobalVariableCase: CamelCase
+      readability-identifier-naming.GlobalVariablePrefix: g
+      readability-identifier-naming.MemberCase: lower_case
+      readability-identifier-naming.PrivateMemberCase: lower_case
+      readability-identifier-naming.PrivateMemberSuffix: _
+      readability-identifier-naming.ProtectedMemberCase: lower_case
+      readability-identifier-naming.ProtectedMemberSuffix: _
+      readability-identifier-naming.ClassMemberCase: lower_case
+      readability-identifier-naming.ClassMemberSuffix: _
+      readability-identifier-naming.ParameterCase: lower_case
+      readability-identifier-naming.ConstantParameterCase: lower_case
+      readability-identifier-naming.TemplateParameterCase: CamelCase
+      readability-identifier-naming.ValueTemplateParameterCase: lower_case
+      readability-identifier-naming.MacroDefinitionCase: UPPER_CASE
+      readability-identifier-naming.MacroDefinitionIgnoredRegexp: "^[A-Z]+(_[A-Z]+)*_$"
+  UnusedIncludes: None
+
+Completion:
+  HeaderInsertion: Never
+
+---
+If:
+  PathMatch:
+    - third_party/.*
+    - build/.*
+
+Diagnostics:
+  Suppress: "*"

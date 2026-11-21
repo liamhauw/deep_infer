@@ -1,0 +1,19 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(set = 0, binding = 0, rgba8) uniform readonly image2D scene;
+layout(set = 0, binding = 1, std430) writeonly buffer Tensor {
+  float values[];
+} tensor;
+
+void main() {
+  ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+  ivec2 size = imageSize(scene);
+  if (any(greaterThanEqual(pos, size))) return;
+  int pixel = pos.y * size.x + pos.x;
+  int plane = size.x * size.y;
+  vec3 rgb = imageLoad(scene, pos).rgb;
+  tensor.values[pixel] = rgb.r;
+  tensor.values[plane + pixel] = rgb.g;
+  tensor.values[2 * plane + pixel] = rgb.b;
+}

@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/engine/Release/deep_infer_engine.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "CMake Debug"
+    },
+    {
+      "name": "RelWithDebug",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/bin/deep_infer_engine.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "CMake RelWithDebInfo"
+    },
+  ]
+}
