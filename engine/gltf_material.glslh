@@ -1,0 +1,16 @@
+layout(push_constant) uniform Material {
+  vec4 baseColor;
+  vec4 emissiveCutoff;
+  vec4 pbr;
+  uint flags;
+} material;
+
+const uint alphaMask = 1u;
+const uint alphaBlend = 2u;
+const uint doubleSided = 4u;
+const uint unlit = 8u;
+const uint normalMap = 16u;
+
+bool hasFlag(uint flag) {
+  return (material.flags & flag) != 0u;
+}

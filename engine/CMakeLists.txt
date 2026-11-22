@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 4.2)
 project(deep_infer_engine)
 
-file(GLOB_RECURSE HEADER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
-file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
+file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 file(GLOB_RECURSE SHADER_FILES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/*.glsl"
   "${CMAKE_CURRENT_SOURCE_DIR}/*.vert"
@@ -19,8 +18,9 @@ foreach(source IN LISTS SHADER_FILES)
   cmake_path(GET output PARENT_PATH output_dir)
   add_custom_command(OUTPUT "${output}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${output_dir}"
-    COMMAND Vulkan::glslc --target-env=vulkan1.3 --target-spv=spv1.5 -O -mfmt=c "${source}" -o "${output}"
+    COMMAND Vulkan::glslc --target-env=vulkan1.3 --target-spv=spv1.5 -O -mfmt=c -MD -MF "${output}.d" "${source}" -o "${output}"
     DEPENDS "${source}"
+    DEPFILE "${output}.d"
     VERBATIM
   )
   list(APPEND SHADER_HEADERS "${output}")

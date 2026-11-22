@@ -1,0 +1,6 @@
+layout(set = 0, binding = 0, std140) uniform Frame {
+  mat4 viewProjection;
+  mat4 lightProjection;
+  vec4 eye;
+  vec4 light;
+} frame;

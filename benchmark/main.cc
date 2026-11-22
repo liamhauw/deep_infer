@@ -305,6 +305,9 @@ void RunInference(const fs::path& engine_path, const fs::path& input_path,
 }  // namespace
 
 int main(int argc, char** argv) try {
+  constexpr auto kDefaultEnginePath =
+      "resource/model/cnnps_feat16_conv8_scale2_1x3x320x640_static_fp32_op20.trt";
+  constexpr auto kDefaultInputPath = "resource/image/h320_w640.png";
   constexpr std::string_view kIterationsFlag = "--iterations=";
   int iterations = 0;
   if (argc > 1 &&
@@ -320,13 +323,13 @@ int main(int argc, char** argv) try {
   }
   if (argc > 4) {
     std::fputs(
-        "Usage: cpp_startup [engine.trt [input.png|input.f32 "
+        "Usage: deep_infer_benchmark [engine.trt [input.png|input.f32 "
         "[output.png|output.f32]]] [--iterations=N]\n",
         stderr);
     return EXIT_FAILURE;
   }
-  RunInference(argc > 1 ? fs::path(argv[1]) : fs::path("model/cnnps2.trt"),
-               argc > 2 ? fs::path(argv[2]) : fs::path{"image/h320_w640.png"},
+  RunInference(argc > 1 ? fs::path(argv[1]) : fs::path(kDefaultEnginePath),
+               argc > 2 ? fs::path(argv[2]) : fs::path(kDefaultInputPath),
                argc > 3 ? fs::path(argv[3]) : fs::path{}, iterations);
   return EXIT_SUCCESS;
 } catch (const std::exception& error) {

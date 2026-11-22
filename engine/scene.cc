@@ -11,7 +11,8 @@
 #include <vector>
 
 #include "cuda_check.h"
-#include "vk_check.h"
+#include "gltf_renderer.h"
+#include "vk_render.h"
 
 namespace deep_infer {
 namespace {
@@ -21,9 +22,6 @@ constexpr auto kMemoryHandle = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 constexpr auto kSemaphoreHandle =
     VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 constexpr auto kTensorUsage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-constexpr VkImageSubresourceRange kColorRange{
-    VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1,
-};
 
 constexpr auto kVertexCode = std::to_array<std::uint32_t>(
 #include "scene.vert.inc"
@@ -109,54 +107,6 @@ Tensor GetTensor(const nvinfer1::ICudaEngine& engine,
   throw std::runtime_error("Engine is missing an input or output tensor");
 }
 
-struct Shader {
-  Shader(VkDevice device, std::span<const std::uint32_t> code)
-      : device(device) {
-    VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-    info.codeSize = code.size_bytes();
-    info.pCode = code.data();
-    CheckVk(vkCreateShaderModule(device, &info, nullptr, &module),
-            "Create shader module");
-  }
-  Shader(const Shader&) = delete;
-  Shader& operator=(const Shader&) = delete;
-  ~Shader() { vkDestroyShaderModule(device, module, nullptr); }
-
-  VkPipelineShaderStageCreateInfo Stage(VkShaderStageFlagBits stage) const {
-    return {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = stage,
-        .module = module,
-        .pName = "main",
-    };
-  }
-
-  VkDevice device;
-  VkShaderModule module{};
-};
-
-void TransitionImage(VkCommandBuffer cmd, VkImage image,
-                     VkImageLayout old_layout, VkImageLayout new_layout,
-                     VkPipelineStageFlags2 src_stage, VkAccessFlags2 src_access,
-                     VkPipelineStageFlags2 dst_stage,
-                     VkAccessFlags2 dst_access) {
-  VkImageMemoryBarrier2 barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
-  barrier.srcStageMask = src_stage;
-  barrier.srcAccessMask = src_access;
-  barrier.dstStageMask = dst_stage;
-  barrier.dstAccessMask = dst_access;
-  barrier.oldLayout = old_layout;
-  barrier.newLayout = new_layout;
-  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.image = image;
-  barrier.subresourceRange = kColorRange;
-  VkDependencyInfo dependency{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
-  dependency.imageMemoryBarrierCount = 1;
-  dependency.pImageMemoryBarriers = &barrier;
-  vkCmdPipelineBarrier2(cmd, &dependency);
-}
-
 }  // namespace
 
 struct Scene::Impl {
@@ -186,7 +136,8 @@ struct Scene::Impl {
     DestroyImage(upscaled_image);
   }
 
-  void Initialize(const std::filesystem::path& engine_path) {
+  void Initialize(VkQueue queue, const std::filesystem::path& engine_path,
+                  const std::filesystem::path& scene_path) {
     std::ifstream file(engine_path, std::ios::binary);
     file.seekg(0, std::ios::end);
     const auto kBytes = static_cast<std::streamoff>(file.tellg());
@@ -225,6 +176,11 @@ struct Scene::Impl {
     CreateImage(input_tensor.extent, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
                 native_image);
     CreateImage(output_tensor.extent, 0, upscaled_image);
+    if (!scene_path.empty()) {
+      model = std::make_unique<GltfRenderer>(
+          physical, device, queue, queue_family, input_tensor.extent,
+          kImageFormat, scene_path);
+    }
     CreatePipelines();
 
     context.reset(engine->createExecutionContext());
@@ -437,16 +393,9 @@ struct Scene::Impl {
   }
 
   void CreatePipelines() {
-    VkPushConstantRange time{VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float)};
-    VkPipelineLayoutCreateInfo graphics_info{
-        VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-    };
-    graphics_info.pushConstantRangeCount = 1;
-    graphics_info.pPushConstantRanges = &time;
-    CheckVk(vkCreatePipelineLayout(device, &graphics_info, nullptr,
-                                   &graphics_layout),
-            "Create scene pipeline layout");
-    CreateGraphicsPipeline();
+    if (!model) {
+      CreateProceduralPipeline();
+    }
 
     const std::array kBindings{
         VkDescriptorSetLayoutBinding{
@@ -510,7 +459,17 @@ struct Scene::Impl {
                      output_tensor.Bytes());
   }
 
-  void CreateGraphicsPipeline() {
+  void CreateProceduralPipeline() {
+    VkPushConstantRange time{VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float)};
+    VkPipelineLayoutCreateInfo graphics_info{
+        VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+    };
+    graphics_info.pushConstantRangeCount = 1;
+    graphics_info.pPushConstantRanges = &time;
+    CheckVk(vkCreatePipelineLayout(device, &graphics_info, nullptr,
+                                   &graphics_layout),
+            "Create scene pipeline layout");
+
     const Shader kVertex(device, kVertexCode);
     const Shader kFragment(device, kFragmentCode);
     const std::array kStages{
@@ -655,12 +614,7 @@ struct Scene::Impl {
     vkCmdPipelineBarrier2(cmd, &dependency);
   }
 
-  void RecordScene(VkCommandBuffer cmd, float time, bool upscale) const {
-    TransitionImage(cmd, native_image.image, VK_IMAGE_LAYOUT_UNDEFINED,
-                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                    VK_PIPELINE_STAGE_2_NONE, VK_ACCESS_2_NONE,
-                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
+  void RecordProcedural(VkCommandBuffer cmd, float time) const {
     VkRenderingAttachmentInfo color{
         VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
     };
@@ -690,6 +644,19 @@ struct Scene::Impl {
                        sizeof(time), &time);
     vkCmdDraw(cmd, 3, 1, 0, 0);
     vkCmdEndRendering(cmd);
+  }
+
+  void RecordScene(VkCommandBuffer cmd, float time, bool upscale) const {
+    TransitionImage(cmd, native_image.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    VK_PIPELINE_STAGE_2_NONE, VK_ACCESS_2_NONE,
+                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
+    if (model) {
+      model->Record(cmd, native_image.view, time);
+    } else {
+      RecordProcedural(cmd, time);
+    }
     TransitionImage(cmd, native_image.image,
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                     upscale ? VK_IMAGE_LAYOUT_GENERAL
@@ -732,6 +699,7 @@ struct Scene::Impl {
   Tensor output_tensor;
   Image native_image;
   Image upscaled_image;
+  std::unique_ptr<GltfRenderer> model;
   SharedBuffer input;
   SharedBuffer output;
   SharedSemaphore input_ready;
@@ -747,11 +715,11 @@ struct Scene::Impl {
   std::array<VkDescriptorSet, 2> tensor_sets{};
 };
 
-Scene::Scene(VkPhysicalDevice physical, VkDevice device,
-             std::uint32_t queue_family,
-             const std::filesystem::path& engine_path)
+Scene::Scene(VkPhysicalDevice physical, VkDevice device, VkQueue queue,
+             std::uint32_t queue_family, const std::filesystem::path& engine_path,
+             const std::filesystem::path& scene_path)
     : impl_(std::make_unique<Impl>(physical, device, queue_family)) {
-  impl_->Initialize(engine_path);
+  impl_->Initialize(queue, engine_path, scene_path);
 }
 
 Scene::~Scene() = default;

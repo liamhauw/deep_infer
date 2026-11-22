@@ -13,6 +13,8 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "cuda_check.h"
@@ -29,6 +31,23 @@ namespace {
 constexpr const wchar_t* kWindowClass = L"DeepInfer";
 constexpr std::uint32_t kMinImages = 2;
 constexpr auto kForever = std::numeric_limits<std::uint64_t>::max();
+constexpr auto kDefaultEnginePath =
+    L"resource/model/cnnps_feat16_conv8_scale2_1x3x320x640_static_fp32_op20.trt";
+
+std::filesystem::path DefaultScenePath() {
+  std::filesystem::path resource_path(L"resource/scene/studio.glb");
+  if (std::filesystem::is_regular_file(resource_path)) {
+    return resource_path;
+  }
+  std::wstring exe(32768, L'\0');
+  const DWORD kLength =
+      GetModuleFileNameW(nullptr, exe.data(), static_cast<DWORD>(exe.size()));
+  if (kLength == 0 || kLength >= exe.size()) {
+    throw std::runtime_error("Cannot locate the bundled glTF scene");
+  }
+  exe.resize(kLength);
+  return std::filesystem::path(exe).parent_path() / L"studio.glb";
+}
 
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam,
                             LPARAM lparam) {
@@ -128,14 +147,15 @@ class App {
     }
   }
 
-  void Initialize(const std::filesystem::path& engine_path) {
+  void Initialize(const std::filesystem::path& engine_path,
+                  const std::filesystem::path& scene_path) {
     CreateWindowHandle();
     CreateInstance();
     SelectDevice();
     CreateDevice();
     CreateSceneCommands();
-    scene_ = std::make_unique<deep_infer::Scene>(physical_, device_,
-                                                 queue_family_, engine_path);
+    scene_ = std::make_unique<deep_infer::Scene>(
+        physical_, device_, queue_, queue_family_, engine_path, scene_path);
     CreateSwapchain();
     InitializeUi();
     ShowWindow(window_, SW_SHOWNORMAL);
@@ -572,13 +592,29 @@ class App {
 
 }  // namespace
 
-int main(int argc, char** argv) try {
-  if (argc > 2) {
-    std::fputs("Usage: deep_infer_engine [engine.trt]\n", stderr);
+// The Windows CRT expects this entry-point name.
+// NOLINTNEXTLINE(readability-identifier-naming)
+int wmain(int argc, wchar_t** argv) try {
+  if (argc > 3 || (argc == 2 && std::wstring_view(argv[1]) == L"--help")) {
+    std::fputs(
+        "Usage: deep_infer_engine [engine.trt "
+        "[scene.gltf|scene.glb|--procedural]]\n",
+        argc > 3 ? stderr : stdout);
+    return argc > 3 ? EXIT_FAILURE : EXIT_SUCCESS;
+  }
+  const bool kProcedural =
+      argc == 3 && std::wstring_view(argv[2]) == L"--procedural";
+  if (argc == 3 && !kProcedural && std::wstring_view(argv[2]).empty()) {
+    std::fputs("Expected a glTF scene path\n", stderr);
     return EXIT_FAILURE;
   }
+  std::filesystem::path scene_path;
+  if (!kProcedural) {
+    scene_path =
+        argc == 3 ? std::filesystem::path(argv[2]) : DefaultScenePath();
+  }
   App app;
-  app.Initialize(argc == 2 ? argv[1] : "model/cnnps2.trt");
+  app.Initialize(argc >= 2 ? argv[1] : kDefaultEnginePath, scene_path);
   app.Run();
   return EXIT_SUCCESS;
 } catch (const std::exception& error) {

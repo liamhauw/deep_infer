@@ -10,8 +10,9 @@ namespace deep_infer {
 
 class Scene {
  public:
-  Scene(VkPhysicalDevice physical, VkDevice device, std::uint32_t queue_family,
-        const std::filesystem::path& engine_path);
+  Scene(VkPhysicalDevice physical, VkDevice device, VkQueue queue,
+        std::uint32_t queue_family, const std::filesystem::path& engine_path,
+        const std::filesystem::path& scene_path);
   ~Scene();
 
   VkExtent2D InputExtent() const;

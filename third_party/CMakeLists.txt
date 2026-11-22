@@ -37,6 +37,10 @@ message(STATUS "TensorRT-RTX include directory = ${TRTRTX_INCLUDE_DIR}")
 message(STATUS "TensorRT-RTX runtime library = ${TRTRTX_RUNTIME_LIBRARY}")
 message(STATUS "TensorRT-RTX ONNX parser library = ${TRTRTX_ONNX_PARSER_LIBRARY}")
 
+# cgltf
+add_library(cgltf INTERFACE)
+target_include_directories(cgltf SYSTEM INTERFACE cgltf)
+
 # imgui
 add_library(imgui)
 target_sources(imgui PRIVATE
@@ -66,7 +70,6 @@ add_library(${PROJECT_NAME})
 target_sources(${PROJECT_NAME} PRIVATE third_party.cc)
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
-  "${STB_DIR}"
   "${TRTRTX_INCLUDE_DIR}"
 )
 target_link_libraries(${PROJECT_NAME} PUBLIC
@@ -74,6 +77,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   CUDA::cudart
   "${TRTRTX_RUNTIME_LIBRARY}"
   "${TRTRTX_ONNX_PARSER_LIBRARY}"
+  cgltf
   imgui
   stb
 )
